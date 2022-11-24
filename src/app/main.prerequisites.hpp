@@ -57,10 +57,11 @@
 //! Project Headers
 #include "app.hpp"
 #include "atomicdex/constants/qt.wallet.enums.hpp"
+#include "atomicdex/constants/dex.constants.hpp"
 #include "atomicdex/models/qt.portfolio.model.hpp"
 #include "atomicdex/utilities/kill.hpp"
 #include "atomicdex/utilities/qt.utilities.hpp"
-
+#include "atomicdex/filesystem.qml.hpp"
 #include "atomicdex/utilities/log.prerequisites.hpp"
 
 #ifdef __APPLE__
@@ -70,43 +71,9 @@
 
 #if defined(ATOMICDEX_HOT_RELOAD)
 void
-qtMsgOutput(QtMsgType type, const QMessageLogContext& context, const QString& msg)
-{
-    const auto localMsg = msg.toLocal8Bit();
-    switch (type)
-    {
-    case QtDebugMsg:
-        qaterial::Logger::QATERIAL->debug(localMsg.constData());
-        break;
-    case QtInfoMsg:
-        qaterial::Logger::QATERIAL->info(localMsg.constData());
-        break;
-    case QtWarningMsg:
-        qaterial::Logger::QATERIAL->warn(localMsg.constData());
-        break;
-    case QtCriticalMsg:
-        qaterial::Logger::QATERIAL->error(localMsg.constData());
-        break;
-    case QtFatalMsg:
-        qaterial::Logger::QATERIAL->error(localMsg.constData());
-        abort();
-    }
-}
-
-void
 installLoggers()
 {
-    qInstallMessageHandler(qtMsgOutput);
-#    ifdef WIN32
-    const auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-    qaterial::Logger::registerSink(msvcSink);
-#    endif
-    const auto stdoutSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    qaterial::Logger::registerSink(stdoutSink);
-    qaterial::Logger::registerSink(qaterial::HotReload::sink());
-    stdoutSink->set_level(spdlog::level::debug);
-    qaterial::HotReload::sink()->set_level(spdlog::level::debug);
-    qaterial::Logger::QATERIAL->set_level(spdlog::level::debug);
+    qInstallMessageHandler(&qaterial::HotReload::log);
 }
 #endif
 
@@ -138,7 +105,7 @@ static void
 signal_handler(int signal)
 {
     SPDLOG_ERROR("sigabort received, cleaning mm2");
-    atomic_dex::kill_executable("mm2");
+    atomic_dex::kill_executable(atomic_dex::g_dex_api);
 #if defined(linux) || defined(__APPLE__)
     boost::stacktrace::safe_dump_to("./backtrace.dump");
     std::ifstream                 ifs("./backtrace.dump");
@@ -192,20 +159,37 @@ static void
 clean_previous_run()
 {
     SPDLOG_INFO("cleaning previous mm2 instance");
-    atomic_dex::kill_executable("mm2");
+    atomic_dex::kill_executable(atomic_dex::g_dex_api);
 }
 
-static void
-init_logging()
+static void init_logging()
 {
-    auto logger = atomic_dex::utils::register_logger();
-    if (spdlog::get("log_mt") == nullptr)
-    {
-        spdlog::register_logger(logger);
-        spdlog::set_default_logger(logger);
-        spdlog::set_level(spdlog::level::trace);
-        spdlog::set_pattern("[%T] [%^%l%$] [%s:%#] [%t]: %v");
-    }
+    constexpr size_t qsize_spdlog             = 10240;
+    constexpr size_t spdlog_thread_count      = 2;
+    constexpr size_t spdlog_max_file_size     = 7777777;
+    constexpr size_t spdlog_max_file_rotation = 3;
+
+    fs::path path = atomic_dex::utils::get_atomic_dex_current_log_file();
+    spdlog::init_thread_pool(qsize_spdlog, spdlog_thread_count);
+    auto tp = spdlog::thread_pool();
+    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+
+#if defined(_WIN32) || defined(WIN32)
+    auto rotating_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(path.wstring(), spdlog_max_file_size, spdlog_max_file_rotation);
+#else
+    auto rotating_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(path.string(), spdlog_max_file_size, spdlog_max_file_rotation);
+#endif
+
+    std::vector<spdlog::sink_ptr> sinks{stdout_sink, rotating_sink};
+    auto logger = std::make_shared<spdlog::async_logger>("log_mt", sinks.begin(), sinks.end(), tp, spdlog::async_overflow_policy::block);
+    spdlog::register_logger(logger);
+    spdlog::set_default_logger(logger);
+#ifdef DEBUG
+    spdlog::set_level(spdlog::level::trace);
+#else
+    spdlog::set_level(spdlog::level::info);
+#endif
+    spdlog::set_pattern("[%T] [%^%l%$] [%s:%#] [%t]: %v");
 }
 
 static void
@@ -277,11 +261,9 @@ setup_default_themes()
     fs_error_code  ec;
 
     LOG_PATH_CMP("Checking for setup default themes - theme_path: {} original_theme_path: {}", theme_path, original_theme_path);
-    if (fs::is_empty(theme_path, ec))
-    {
-        LOG_PATH("{} is empty, copying default themes into this directory", theme_path);
-        fs::copy(original_theme_path, theme_path, ec);
-    }
+    LOG_PATH("copying default themes into directory: {}", theme_path);
+    //fs::remove_all(theme_path);
+    fs::copy(original_theme_path, theme_path,  fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
     if (ec)
     {
         SPDLOG_ERROR("fs::error: {}", ec.message());
@@ -295,12 +277,9 @@ setup_default_themes()
         fs::path       original_logo_path{ag::core::assets_real_path() / "logo"};
 
         LOG_PATH_CMP("Checking for setup default logo - logo_path: {} original_logo_path: {}", logo_path, original_logo_path);
-
-        if (fs::is_empty(logo_path, ec))
-        {
-            LOG_PATH("{} is empty, copying default logo into this directory", logo_path);
-            fs::copy(original_logo_path, logo_path, ec);
-        }
+        //fs::remove_all(logo_path);
+        fs::copy(original_logo_path, logo_path, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
+        LOG_PATH("copying default logo into directory: {}", logo_path);
         if (ec)
         {
             SPDLOG_ERROR("fs::error: {}", ec.message());
@@ -352,7 +331,7 @@ handle_settings(QSettings& settings)
         }
     };
     SPDLOG_INFO("file name settings: {}", settings.fileName().toStdString());
-    create_settings_functor("CurrentTheme", QString("Dark.json"));
+    create_settings_functor("CurrentTheme", QString("Default - Dark"));
 
 #if defined(_WIN32) || defined(WIN32)
     create_settings_functor("ThemePath", QString::fromStdWString(atomic_dex::utils::get_themes_path().wstring()));
@@ -361,17 +340,12 @@ handle_settings(QSettings& settings)
 #endif
     create_settings_functor("AutomaticUpdateOrderBot", QVariant(false));
     create_settings_functor("WalletChartsCategory", qint32(WalletChartsCategories::OneMonth));
-    create_settings_functor("AvailableLang", QStringList{"en", "fr", "tr", "ru"});
+    create_settings_functor("AvailableLang", QStringList{"en", "es", "fr", "de", "tr", "ru"});
     create_settings_functor("CurrentLang", QString("en"));
     create_settings_functor("2FA", 0);
     create_settings_functor("MaximumNbCoinsEnabled", 50);
     create_settings_functor("DefaultTradingMode", TradingMode::Simple);
-#ifdef __APPLE__
-    create_settings_functor("FontMode", QQuickWindow::TextRenderType::NativeTextRendering);
-    QQuickWindow::setTextRenderType(static_cast<QQuickWindow::TextRenderType>(settings.value("FontMode").toInt()));
-#else
     create_settings_functor("FontMode", QQuickWindow::TextRenderType::QtTextRendering);
-#endif
 }
 
 inline int
@@ -386,6 +360,10 @@ run_app(int argc, char** argv)
         QSslSocket::sslLibraryVersionString().toStdString());
 
 #if defined(Q_OS_MACOS)
+    // https://bugreports.qt.io/browse/QTBUG-89379
+    qputenv("QT_ENABLE_GLYPH_CACHE_WORKAROUND", "1");
+    qputenv("QML_USE_GLYPHCACHE_WORKAROUND", "1");
+
     fs::path old_path    = fs::path(std::getenv("HOME")) / ".atomic_qt";
     fs::path target_path = atomic_dex::utils::get_atomic_dex_data_folder();
     SPDLOG_INFO("{} exists -> {}", old_path.string(), fs::exists(old_path));
@@ -422,12 +400,14 @@ run_app(int argc, char** argv)
 
     //! Qt utilities declaration.
     atomic_dex::qt_utilities qt_utilities;
+    atomic_dex::filesystem qml_filesystem;
 
     //! QT
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     QtWebEngine::initialize();
     std::shared_ptr<QApplication> app = std::make_shared<QApplication>(argc, argv);
 
+    app->setWindowIcon(QIcon(":/assets/images/logo/dex-logo.png"));
     app->setOrganizationName("KomodoPlatform");
     app->setOrganizationDomain("com");
     QQmlApplicationEngine engine;
@@ -475,6 +455,7 @@ run_app(int argc, char** argv)
     engine.rootContext()->setContextProperty("atomic_settings", &settings);
     engine.rootContext()->setContextProperty("dex_current_version", QString::fromStdString(atomic_dex::get_version()));
     engine.rootContext()->setContextProperty("qtversion", QString(qVersion()));
+    engine.rootContext()->setContextProperty("DexFilesystem", &qml_filesystem);
     SPDLOG_INFO("QML context properties created");
     // Load Qaterial.
 
@@ -484,11 +465,13 @@ run_app(int argc, char** argv)
     //  SPDLOG_INFO("{}",  QQuickStyle::ge))
     SPDLOG_INFO("Qaterial type created");
 
-    engine.addImportPath("qrc:/atomic_defi_design/imports");
-    engine.addImportPath("qrc:/atomic_defi_design/Constants");
-    qmlRegisterSingletonType(QUrl("qrc:/atomic_defi_design/qml/Constants/General.qml"), "App", 1, 0, "General");
-    qmlRegisterSingletonType(QUrl("qrc:/atomic_defi_design/qml/Constants/Style.qml"), "App", 1, 0, "Style");
-    qmlRegisterSingletonType(QUrl("qrc:/atomic_defi_design/qml/Constants/API.qml"), "App", 1, 0, "API");
+    engine.addImportPath("qrc:/imports");
+    engine.addImportPath("qrc:/Constants");
+    qmlRegisterSingletonType(QUrl("qrc:/Dex/Constants/DexTheme.qml"), "App", 1, 0, "DexTheme");
+    qmlRegisterSingletonType(QUrl("qrc:/Dex/Constants/DexTypo.qml"), "App", 1, 0, "DexTypo");
+    qmlRegisterSingletonType(QUrl("qrc:/Dex/Constants/General.qml"), "App", 1, 0, "General");
+    qmlRegisterSingletonType(QUrl("qrc:/Dex/Constants/Style.qml"), "App", 1, 0, "Style");
+    qmlRegisterSingletonType(QUrl("qrc:/Dex/Constants/API.qml"), "App", 1, 0, "API");
     qRegisterMetaType<t_portfolio_roles>("PortfolioRoles");
     SPDLOG_INFO("QML singleton created");
 
@@ -505,7 +488,7 @@ run_app(int argc, char** argv)
 #else
     SPDLOG_INFO("Load qml engine");
     engine.rootContext()->setContextProperty("debug_bar", QVariant(false));
-    const QUrl url(QStringLiteral("qrc:/atomic_defi_design/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/Dex/main.qml"));
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated, app.get(),
         [url](QObject* obj, const QUrl& objUrl)

@@ -55,6 +55,7 @@ namespace atomic_dex
             MainCurrencyPriceForOneUnit,
             MainFiatPriceForOneUnit,
             Trend7D,
+            ActivationStatus,
             Excluded,
             Display,
             NameAndTicker,
@@ -67,7 +68,9 @@ namespace atomic_dex
             CoinType,                    ///< Type of the coin
             Address,                     ///< Public address
             PrivKey,                     ///< Priv key
-            PercentMainCurrency
+            PercentMainCurrency,
+            LastPriceTimestamp,
+            PriceProvider
         };
         Q_ENUM(PortfolioRoles)
 

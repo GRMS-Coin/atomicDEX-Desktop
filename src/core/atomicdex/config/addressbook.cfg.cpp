@@ -26,24 +26,31 @@ namespace atomic_dex
 {
     nlohmann::json load_addressbook_cfg(const std::string& wallet_name)
     {
-        const fs::path       source_folder{utils::get_atomic_dex_addressbook_folder()};
-        const fs::path       in_path      {source_folder / wallet_name};
-        QFile                input;
-        input.setFileName(std_path_to_qstring(in_path));
-        //std::fstream   input;
+        const fs::path source_folder{utils::get_atomic_dex_addressbook_folder()};
+        const fs::path in_path      {source_folder / wallet_name};
+        QFile          ifs;
+        QString        content;
         nlohmann::json out;
         
         utils::create_if_doesnt_exist(source_folder);
         {
-            input.open(QIODevice::ReadOnly | QIODevice::Append | QIODevice::Text);
+            ifs.setFileName(std_path_to_qstring(in_path));
             try
             {
-                QString val = input.readAll();
-                out = nlohmann::json::parse(val.toStdString());
+                ifs.open(QIODevice::ReadOnly | QIODevice::Text);
+                content = ifs.readAll();
+                ifs.close();
+                out = nlohmann::json::parse(content.toStdString());
+                SPDLOG_INFO("Addressbook configuration file read.");
             }
             catch ([[maybe_unused]] nlohmann::json::parse_error& ex)
             {
-                //spdlog::warn("Addressbook config file was invalid, its content will be cleaned.");
+                SPDLOG_WARN("Addressbook config file was invalid, use empty configuration: {}. Content was: {}", ex.what(), content.toStdString());
+                out = nlohmann::json::array();
+            }
+            catch (std::exception& ex)
+            {
+                SPDLOG_ERROR(ex.what());
                 out = nlohmann::json::array();
             }
             return out;
@@ -55,12 +62,20 @@ namespace atomic_dex
         const fs::path      out_folder{utils::get_atomic_dex_addressbook_folder()};
         const fs::path      out_path  {out_folder / wallet_name};
         QFile output;
-        output.setFileName(std_path_to_qstring(out_path));
 
-        utils::create_if_doesnt_exist(out_path);
+        utils::create_if_doesnt_exist(out_folder);
         {
-            output.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
-            output.write(QString::fromStdString(in.dump()).toUtf8());
+            output.setFileName(std_path_to_qstring(out_path));
+            try
+            {
+                output.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
+                output.write(QString::fromStdString(in.dump()).toUtf8());
+                SPDLOG_INFO("Addressbook data successfully wrote in persistent data !");
+            }
+            catch (std::exception& ex)
+            {
+                SPDLOG_ERROR(ex.what());
+            }
         }
     }
 }

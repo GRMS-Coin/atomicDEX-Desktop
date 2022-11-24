@@ -34,7 +34,7 @@ struct tests_context : public antara::gaming::world::app
 
   public:
     void
-    on_coin_enabled(const atomic_dex::coin_enabled& evt)
+    on_coin_initialized(const atomic_dex::coin_fully_initialized& evt)
     {
         if (std::any_of(begin(evt.tickers), end(evt.tickers), [this](auto&& item) { return item == this->m_extra_coins[0]; }))
         {
@@ -52,7 +52,7 @@ struct tests_context : public antara::gaming::world::app
     tests_context([[maybe_unused]] char** argv)
     {
 #if !defined(WIN32) && !defined(_WIN32)
-        this->dispatcher_.sink<atomic_dex::coin_enabled>().connect<&tests_context::on_coin_enabled>(*this);
+        this->dispatcher_.sink<atomic_dex::coin_fully_initialized>().connect<&tests_context::on_coin_initialized>(*this);
         //! Creates mm2 service.
         auto& mm2 = system_manager_.create_system<atomic_dex::mm2_service>(system_manager_);
 
@@ -100,7 +100,7 @@ struct tests_context : public antara::gaming::world::app
         if (!found)
         {
             SPDLOG_INFO("Extra coins not enabled yet, enabling now");
-            mm2.enable_multiple_coins(m_extra_coins);
+           mm2.enable_coins(m_extra_coins);
         }
         while (!m_extra_coins_ready) { std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
         //! At this point BTC/KMD are enabled but we need ERC20 and QRC20 too / change login behaviour ?

@@ -22,7 +22,7 @@
 #include "atomicdex/api/mm2/generics.hpp"
 #include "atomicdex/api/mm2/rpc.sell.hpp"
 
-namespace mm2::api
+namespace atomic_dex::mm2
 {
     void
     to_json(nlohmann::json& j, const sell_request& request)
@@ -39,7 +39,7 @@ namespace mm2::api
         j["base"]   = request.base;
         j["rel"]    = request.rel;
         j["volume"] = request.volume; //< First take the user input
-        if (request.is_max)           //< It's a real max means user want to sell his base_max_taker_vol let's take the fraction repr
+        if (request.is_max && !request.selected_order_use_input_volume)           //< It's a real max means user want to sell his base_max_taker_vol let's take the fraction repr
         {
             j["volume"] = volume_fraction_functor();
         }
@@ -91,4 +91,4 @@ namespace mm2::api
     {
         extract_rpc_json_answer<sell_answer_success>(j, answer);
     }
-} // namespace mm2::api
+} // namespace atomic_dex::mm2

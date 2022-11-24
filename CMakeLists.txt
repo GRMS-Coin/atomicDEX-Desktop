@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.18)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -11,7 +11,7 @@ include(vcpkg_prerequisites)
 include(qt_prerequisites)
 include(cfg_hash)
 
-project(${DEX_PROJECT_NAME} LANGUAGES CXX VERSION 0.5.0)
+project(${DEX_PROJECT_NAME} LANGUAGES CXX VERSION 0.5.7)
 message(STATUS "${PROJECT_NAME} is version ${PROJECT_VERSION}")
 
 include(cmake_default_options)
@@ -61,13 +61,13 @@ endif ()
 ##! We fetch our dependencies
 if (APPLE)
     FetchContent_Declare(mm2
-            URL http://195.201.0.6/dev/mm2-1e75b09f2-Darwin-Release.zip)
+            URL https://github.com/KomodoPlatform/atomicDEX-API/releases/download/beta-2.1.8741/mm2-6e4de5d21-Darwin-Release.zip)
 elseif (UNIX AND NOT APPLE)
     FetchContent_Declare(mm2
-            URL https://github.com/KomodoPlatform/atomicDEX-API/releases/download/beta-2.1.3666/mm2-572f7a1b5-Linux-Release.zip)
+            URL https://github.com/KomodoPlatform/atomicDEX-API/releases/download/beta-2.1.8741/mm2-6e4de5d21-Linux-Release.zip)
 else ()
     FetchContent_Declare(mm2
-            URL https://github.com/KomodoPlatform/atomicDEX-API/releases/download/beta-2.1.3666/mm2-572f7a1b5-Windows_NT-Release.zip)
+            URL https://github.com/KomodoPlatform/atomicDEX-API/releases/download/beta-2.1.8741/mm2-6e4de5d21-Windows_NT-Release.zip)
 endif ()
 
 #FetchContent_Declare(qmaterial URL https://github.com/KomodoPlatform/Qaterial/archive/last-clang-working-2.zip)
@@ -75,7 +75,7 @@ endif ()
 FetchContent_Declare(
         qmaterial
         GIT_REPOSITORY https://github.com/KomodoPlatform/Qaterial.git
-        GIT_TAG a5ae919a1e33e4a3c63dab4650c825586b7041c9
+        GIT_TAG 53669824261ae07bc0e8c2abb4b55431f65b2055
 )
 
 FetchContent_Declare(jl777-coins
@@ -88,15 +88,14 @@ FetchContent_MakeAvailable(mm2 jl777-coins qmaterial)
 
 ##! Configure our needs.
 if (UNIX)
-    configure_file(assets/config/${PROJECT_VERSION}-coins.json ${CMAKE_CURRENT_SOURCE_DIR}/assets/config/${PROJECT_VERSION}-coins.json COPYONLY)
+    configure_file(${jl777-coins_SOURCE_DIR}/utils/coins_config.json ${CMAKE_CURRENT_SOURCE_DIR}/assets/config/${PROJECT_VERSION}-coins.json COPYONLY)
     configure_file(${jl777-coins_SOURCE_DIR}/coins ${CMAKE_CURRENT_SOURCE_DIR}/assets/tools/mm2/coins COPYONLY)
-    configure_file(${mm2_SOURCE_DIR}/mm2 ${CMAKE_CURRENT_SOURCE_DIR}/assets/tools/mm2/mm2 COPYONLY)
+    configure_file(${mm2_SOURCE_DIR}/mm2 ${CMAKE_CURRENT_SOURCE_DIR}/assets/tools/mm2/${DEX_API} COPYONLY)
 else ()
-    configure_file(assets/config/${PROJECT_VERSION}-coins.json ${CMAKE_BINARY_DIR}/bin/assets/config/${PROJECT_VERSION}-coins.json COPYONLY)
+    configure_file(${jl777-coins_SOURCE_DIR}/utils/coins_config.json ${CMAKE_BINARY_DIR}/bin/assets/config/${PROJECT_VERSION}-coins.json COPYONLY)
     configure_file(${jl777-coins_SOURCE_DIR}/coins ${CMAKE_BINARY_DIR}/bin/assets/tools/mm2/coins COPYONLY)
-    configure_file(${mm2_SOURCE_DIR}/mm2.exe ${CMAKE_BINARY_DIR}/bin/assets/tools/mm2/mm2.exe COPYONLY)
+    configure_file(${mm2_SOURCE_DIR}/mm2.exe ${CMAKE_BINARY_DIR}/bin/assets/tools/mm2/${DEX_API}.exe COPYONLY)
     configure_file(${mm2_SOURCE_DIR}/msvcp140.dll ${CMAKE_BINARY_DIR}/bin/assets/tools/mm2/msvcp140.dll COPYONLY)
-    configure_file(${mm2_SOURCE_DIR}/msvcr100.dll ${CMAKE_BINARY_DIR}/bin/assets/tools/mm2/msvcr100.dll COPYONLY)
     configure_file(${mm2_SOURCE_DIR}/vcruntime140.dll ${CMAKE_BINARY_DIR}/bin/assets/tools/mm2/vcruntime140.dll COPYONLY)
 endif ()
 
@@ -118,7 +117,7 @@ if (WITH_HOTRELOAD)
     FetchContent_Declare(
             qaterial_hotreload
             GIT_REPOSITORY https://github.com/KomodoPlatform/QaterialHotReload
-            GIT_TAG 7826fa36d66162ac0ef5c69ed370e0a28ede6a46
+            GIT_TAG ecffec6bd01d9a13561689283bc2a6a927957f64
     )
     set(QATERIALHOTRELOAD_ENABLE_HOTRELOAD_APP OFF CACHE BOOL "")
     FetchContent_MakeAvailable(qaterial_hotreload)

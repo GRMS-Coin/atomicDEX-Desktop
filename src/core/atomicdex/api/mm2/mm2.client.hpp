@@ -1,14 +1,18 @@
 #pragma once
 
-//! Deps
+// Std Headers
+#include <functional>
+
+// Deps Headers
 #include <entt/core/attribute.h>
 
-//! Project Headers
+// Project Headers
 #include "atomicdex/utilities/cpprestsdk.utilities.hpp"
-#include "atomicdex/api/mm2/rpc.disable.hpp"
-#include "atomicdex/api/mm2/rpc.recover.funds.hpp"
+#include "rpc.disable.hpp"
+#include "rpc.recover.funds.hpp"
+#include "rpc.hpp"
 
-namespace atomic_dex
+namespace atomic_dex::mm2
 {
     class ENTT_API mm2_client
     {
@@ -23,6 +27,11 @@ namespace atomic_dex
 
         //! API
         pplx::task<web::http::http_response> async_rpc_batch_standalone(nlohmann::json batch_array);
+
+        template <rpc Rpc>
+        void process_rpc_async(const std::function<void(Rpc)>& on_rpc_processed);
+        template <rpc Rpc>
+        void process_rpc_async(typename Rpc::expected_request_type request, const std::function<void(Rpc)>& on_rpc_processed);
 
         //! Synced
         template <typename TRequest, typename TAnswer>

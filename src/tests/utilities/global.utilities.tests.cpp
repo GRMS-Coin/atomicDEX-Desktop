@@ -19,6 +19,8 @@
 #include <doctest/doctest.h>
 
 #include "atomicdex/utilities/global.utilities.hpp"
+#include "atomicdex/utilities/safe.float.hpp"
+#include "atomicdex/utilities/security.utilities.hpp"
 
 using namespace atomic_dex::utils;
 
@@ -89,8 +91,6 @@ TEST_CASE("atomic_dex::utils::get_runtime_coins_path()")
     CHECK(fs::exists(result));
 }
 
-TEST_CASE("atomic_dex::utils::register_logger()") { CHECK_NE(register_logger(), nullptr); }
-
 TEST_CASE("atomic_dex::utils::get_current_configs_path()")
 {
     auto result = get_current_configs_path();
@@ -103,6 +103,17 @@ TEST_CASE("atomic_dex::utils::retrieve_main_ticker()")
     CHECK_EQ(atomic_dex::utils::retrieve_main_ticker("BUSD"), "BUSD");
     CHECK_EQ(atomic_dex::utils::retrieve_main_ticker("BUSD-BEP2"), "BUSD");
     CHECK_EQ(atomic_dex::utils::retrieve_main_ticker("BUSD-ERC20"), "BUSD");
+}
+
+TEST_CASE("extract_large_float")
+{
+    CHECK_EQ("12504.71255285", atomic_dex::utils::extract_large_float("12504.712552852304076"));
+    CHECK_EQ("1.1", atomic_dex::utils::extract_large_float("1.1"));
+}
+
+TEST_CASE("generate_random_password")
+{
+    for (int i = 0; i < 10; ++i) { CHECK_EQ(atomic_dex::is_valid_generated_rpc_password(atomic_dex::gen_random_password()), true); }
 }
 
 /*TEST_CASE("u8string")

@@ -21,7 +21,7 @@ namespace atomic_dex
     constexpr const char*
     get_version()
     {
-        return "0.5.71-beta";
+        return "0.5.7.21-beta";
     }
 
     constexpr int
@@ -33,12 +33,12 @@ namespace atomic_dex
     constexpr const char*
     get_raw_version()
     {
-        return "0.5.71";
+        return "0.5.7.21";
     }
 
     constexpr const char*
     get_precedent_raw_version()
     {
-        return "0.5.61.1";
+        return "0.5.71.1";
     }
 } // namespace atomic_dex
